@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Courier — SSH vs HTTPS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --ssh: #f97316;
+    --ssh-glow: rgba(249,115,22,0.3);
+    --https: #22d3ee;
+    --https-glow: rgba(34,211,238,0.3);
+    --bg: #0a0e17;
+    --card: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --dim: #64748b;
+    --success: #22c55e;
+    --error: #ef4444;
+  }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Stars background ── */
+  .stars {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle 3s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { 0% { opacity: 0.2; } 100% { opacity: 0.8; } }
+
+  /* ── Layout ── */
+  .game-container {
+    position: relative; z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* ── Header ── */
+  .game-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .game-title {
+    font-size: 36px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--ssh), var(--https));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+  .game-subtitle { color: var(--dim); font-size: 15px; }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 28px;
+    padding: 0 20px;
+  }
+  .progress-dot {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+  .progress-dot.done { background: var(--success); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+  .progress-dot.active { background: var(--https); box-shadow: 0 0 8px var(--https-glow); animation: pulse-dot 1.5s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* ── Score ── */
+  .score-bar {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--dim);
+  }
+  .score-item { display: flex; align-items: center; gap: 6px; }
+  .score-value { font-weight: 700; color: var(--text); font-size: 18px; }
+
+  /* ── Scene ── */
+  .scene {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .scene-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    width: fit-content;
+  }
+  .badge-ssh { background: rgba(249,115,22,0.12); color: var(--ssh); border: 1px solid rgba(249,115,22,0.25); }
+  .badge-https { background: rgba(34,211,238,0.12); color: var(--https); border: 1px solid rgba(34,211,238,0.25); }
+  .badge-both { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+  .badge-gh { background: rgba(163,230,53,0.12); color: #a3e635; border: 1px solid rgba(163,230,53,0.25); }
+
+  .scene-title { font-size: 22px; font-weight: 700; margin-bottom: 12px; line-height: 1.3; }
+  .scene-narrative {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #94a3b8;
+    margin-bottom: 24px;
+    max-width: 720px;
+  }
+  .scene-narrative strong { color: var(--text); }
+  .scene-narrative code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: #1e293b;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: #e2e8f0;
+  }
+
+  /* ── Visuals ── */
+  .visual-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .network-visual {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 16px 0;
+  }
+  .nv-node {
+    background: #1e293b;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 120px;
+  }
+  .nv-node-icon { font-size: 28px; margin-bottom: 4px; }
+  .nv-node-label { font-size: 12px; font-weight: 600; }
+  .nv-node-sub { font-size: 10px; color: var(--dim); margin-top: 2px; }
+
+  .nv-pipe {
+    width: 100px;
+    height: 4px;
+    position: relative;
+    margin: 0 8px;
+  }
+  .nv-pipe-bg { width: 100%; height: 100%; background: var(--border); border-radius: 2px; }
+  .nv-pipe-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.8s ease;
+  }
+  .nv-pipe-fill.ssh { background: var(--ssh); box-shadow: 0 0 10px var(--ssh-glow); }
+  .nv-pipe-fill.https { background: var(--https); box-shadow: 0 0 10px var(--https-glow); }
+
+  .packet-anim {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    min-height: 24px;
+  }
+  .packet { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 700; animation: slideRight 2s ease-in-out infinite; }
+  .packet.ssh { background: rgba(249,115,22,0.15); color: var(--ssh); }
+  .packet.https { background: rgba(34,211,238,0.15); color: var(--https); }
+  @keyframes slideRight { 0% { transform: translateX(-40px); opacity: 0; } 30% { opacity: 1; } 70% { opacity: 1; } 100% { transform: translateX(40px); opacity: 0; } }
+
+  /* ── Key generation visual ── */
+  .key-gen-visual {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+  .key-card {
+    text-align: center;
+    padding: 16px 20px;
+    border-radius: 10px;
+    min-width: 140px;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+  .key-card:hover { transform: translateY(-3px); }
+  .key-card.private { background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.2); }
+  .key-card.public { background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2); }
+  .key-icon { font-size: 36px; margin-bottom: 8px; }
+  .key-label { font-size: 13px; font-weight: 700; }
+  .key-label.private { color: var(--ssh); }
+  .key-label.public { color: var(--https); }
+  .key-sub { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+  /* ── Quiz choices ── */
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+  }
+  .choice-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #1e293b;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+  .choice-btn:hover { border-color: #475569; background: #263044; transform: translateX(4px); }
+  .choice-btn.correct { border-color: var(--success); background: rgba(34,197,94,0.1); }
+  .choice-btn.wrong { border-color: var(--error); background: rgba(239,68,68,0.1); }
+  .choice-btn.disabled { pointer-events: none; opacity: 0.6; }
+  .choice-key {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dim);
+    flex-shrink: 0;
+  }
+  .choice-btn.correct .choice-key { background: var(--success); color: white; }
+  .choice-btn.wrong .choice-key { background: var(--error); color: white; }
+
+  /* ── Interactive elements ── */
+  .drag-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 20px;
+    min-height: 80px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .drag-zone.over { border-color: var(--https); background: rgba(34,211,238,0.05); }
+  .drag-zone-label { font-size: 13px; color: var(--dim); }
+
+  .drag-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .drag-item {
+    padding: 8px 16px;
+    background: #1e293b;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: grab;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .drag-item:hover { transform: scale(1.05); }
+  .drag-item:active { cursor: grabbing; }
+  .drag-item.ssh-item, .drag-item.https-item { border-color: #475569; color: var(--text); }
+  .drag-item.reveal-ssh { border-color: rgba(249,115,22,0.5); color: var(--ssh); }
+  .drag-item.reveal-https { border-color: rgba(34,211,238,0.5); color: var(--https); }
+  .drag-item.placed { opacity: 0.3; pointer-events: none; }
+
+  .sort-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .sort-bucket {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    min-height: 140px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .sort-bucket.over { border-color: #a78bfa; background: rgba(139,92,246,0.05); }
+  .sort-bucket h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .sort-bucket.ssh-bucket h4 { color: var(--ssh); }
+  .sort-bucket.https-bucket h4 { color: var(--https); }
+  .sort-bucket .placed-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .placed-tag {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    animation: popIn 0.3s ease;
+  }
+  .placed-tag.ssh-item, .placed-tag.https-item { background: rgba(100,116,139,0.12); color: #94a3b8; }
+  .placed-tag.reveal-correct { background: rgba(34,197,94,0.12); color: var(--success); }
+  .placed-tag.reveal-wrong { background: rgba(239,68,68,0.12); color: var(--error); text-decoration: line-through; }
+  .placed-tag.wrong-place { background: rgba(239,68,68,0.12) !important; color: var(--error) !important; text-decoration: line-through; }
+  @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ── Terminal ── */
+  .terminal {
+    background: #0c0c0c;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .terminal-bar {
+    background: #1a1a1a;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .terminal-dot.r { background: #ff5f57; }
+  .terminal-dot.y { background: #febc2e; }
+  .terminal-dot.g { background: #28c840; }
+  .terminal-title { margin-left: 8px; font-size: 11px; color: #666; }
+  .terminal-body { padding: 16px; line-height: 1.8; min-height: 60px; }
+  .terminal-body .prompt { color: var(--success); }
+  .terminal-body .cmd { color: #e2e8f0; }
+  .terminal-body .comment { color: #555; }
+  .terminal-body .output { color: #888; }
+  .terminal-body .highlight-ssh { color: var(--ssh); }
+  .terminal-body .highlight-https { color: var(--https); }
+
+  /* ── Explanation box ── */
+  .explain-box {
+    background: rgba(34,211,238,0.05);
+    border: 1px solid rgba(34,211,238,0.15);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-top: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #94a3b8;
+    animation: fadeIn 0.4s ease;
+  }
+  .explain-box strong { color: var(--text); }
+  .explain-box.error-explain {
+    background: rgba(239,68,68,0.05);
+    border-color: rgba(239,68,68,0.15);
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--ssh), var(--https));
+    color: white;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(34,211,238,0.3); }
+  .btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: #475569; color: var(--text); }
+  .btn-check {
+    background: var(--success);
+    color: white;
+  }
+  .btn-check:hover { background: #16a34a; }
+
+  /* ── Final screen ── */
+  .final-score {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .final-score .trophy { font-size: 72px; margin-bottom: 16px; }
+  .final-score .big-score { font-size: 48px; font-weight: 700; }
+  .final-score .score-label { color: var(--dim); font-size: 16px; margin-top: 4px; }
+  .final-score .grade { font-size: 22px; margin-top: 16px; color: var(--success); font-weight: 600; }
+  .final-recap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+    text-align: left;
+  }
+  .recap-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .recap-card h4 { font-size: 14px; margin-bottom: 10px; }
+  .recap-card h4.ssh-label { color: var(--ssh); }
+  .recap-card h4.https-label { color: var(--https); }
+  .recap-card p { font-size: 13px; color: var(--dim); line-height: 1.6; }
+  .recap-card p strong { color: #94a3b8; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .game-title { font-size: 26px; }
+    .scene { padding: 20px; }
+    .sort-container { grid-template-columns: 1fr; }
+    .final-recap { grid-template-columns: 1fr !important; }
+    .key-gen-visual { gap: 16px; }
+    .network-visual { flex-wrap: wrap; }
+    .nv-pipe { width: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<div class="game-container">
+  <div class="game-header">
+    <div class="game-title">Git Courier</div>
+    <div class="game-subtitle">Learn how SSH and HTTPS deliver your code — by playing</div>
+  </div>
+
+  <div class="progress-bar" id="progressBar"></div>
+  <div class="score-bar">
+    <div class="score-item">Score: <span class="score-value" id="scoreDisplay">0</span></div>
+    <div class="score-item">Level: <span class="score-value" id="levelDisplay">1</span> / <span id="totalLevels"></span></div>
+  </div>
+
+  <div class="scene" id="scene"></div>
+</div>
+
+<script>
+// ── Game State ──
+const state = {
+  level: 0,
+  score: 0,
+  answered: false,
+  sortPlacements: {},
+  sortChecked: false,
+};
+
+// ── Level Data ──
+const levels = [
+  // 0 — Intro
+  {
+    type: 'intro',
+    badge: 'both',
+    title: 'Welcome, Code Courier!',
+    narrative: `You've just been hired at <strong>GitShip Inc.</strong> — a company that delivers code between developers and servers all day long. Your job: learn the two delivery routes we use.<br><br>
+    Think of it like sending a locked package. You need two things: a <strong>way to prove who you are</strong> (authentication) and a <strong>locked channel</strong> so nobody snoops on your package (encryption).<br><br>
+    The two routes are <strong style="color:var(--ssh)">SSH</strong> and <strong style="color:var(--https)">HTTPS</strong>. Both get the job done — but they work very differently. Let's find out how!`,
+    visual: 'network-both',
+  },
+
+  // 1 — SSH key concept
+  {
+    type: 'interactive-keygen',
+    badge: 'ssh',
+    title: 'SSH Route: Your Personal Lock & Key',
+    narrative: `SSH uses something called a <strong>key pair</strong> — two files that are mathematically linked. The <strong style="color:var(--ssh)">private key</strong> stays on your computer (never share it!). The <strong style="color:var(--https)">public key</strong> goes to the server.<br><br>
+    It's like having a magic stamp. Only your stamp can create a mark that matches the mold you gave the server. No password ever crosses the internet.`,
+  },
+
+  // 2 — SSH quiz
+  {
+    type: 'quiz',
+    badge: 'ssh',
+    title: 'Pop Quiz: SSH Basics',
+    narrative: `When you push code over SSH, what gets sent across the internet to prove your identity?`,
+    choices: [
+      'Your password',
+      'Your private key',
+      'A signed challenge (your private key signs it, but the key itself stays put)',
+      'Your GitHub username',
+    ],
+    correct: 2,
+    explanations: {
+      correct: 'The server sends a random challenge, your machine signs it with the private key, and the server checks the signature against your public key. <strong>The private key never leaves your machine.</strong> This is the beauty of asymmetric cryptography!',
+      wrong: 'Not quite! With SSH, your private key <strong>never</strong> leaves your computer. Instead, the server sends a challenge that your machine signs — proving you own the key without revealing it.',
+    }
+  },
+
+  // 3 — HTTPS concept
+  {
+    type: 'visual-story',
+    badge: 'https',
+    title: 'HTTPS Route: The Password Lane',
+    narrative: `HTTPS works differently. First, your computer and the server do a <strong>TLS handshake</strong> — they set up an encrypted tunnel (the same tech that protects your online banking).<br><br>
+    Then, inside that secure tunnel, you send a <strong style="color:var(--https)">personal access token (PAT)</strong> — basically a special password. The server checks it against its database.<br><br>
+    The token <em>is</em> transmitted, but it's protected by the TLS encryption. Think of it as whispering a password inside a soundproof room.`,
+    visual: 'https-flow',
+  },
+
+  // 4 — HTTPS quiz
+  {
+    type: 'quiz',
+    badge: 'https',
+    title: 'Pop Quiz: HTTPS Basics',
+    narrative: `Why is it safe to send a token over HTTPS even though it's technically "sent across the wire"?`,
+    choices: [
+      'It\'s not actually safe — that\'s why SSH is always better',
+      'The token is encrypted by TLS before it travels, so no one can read it in transit',
+      'GitHub servers are unhackable',
+      'Tokens are too short for hackers to intercept',
+    ],
+    correct: 1,
+    explanations: {
+      correct: 'Exactly! TLS encrypts everything before it leaves your computer. Even if someone intercepts the data, they just see scrambled gibberish. The token is safe <strong>in transit</strong> — the risk is only if someone steals it from your machine.',
+      wrong: 'Not quite. The real answer is TLS encryption. Before any data leaves your machine, TLS scrambles it so that even if intercepted, it\'s unreadable. HTTPS is safe <strong>because of</strong> this encryption layer.',
+    }
+  },
+
+  // 5 — Sort game
+  {
+    type: 'sort',
+    badge: 'both',
+    title: 'Sort It Out!',
+    narrative: `Drag each property to the correct protocol. Some might surprise you!`,
+    items: [
+      { text: 'Uses port 22', answer: 'ssh' },
+      { text: 'Uses port 443', answer: 'https' },
+      { text: 'Passwordless after setup', answer: 'ssh' },
+      { text: 'Works through firewalls easily', answer: 'https' },
+      { text: 'Uses a key pair', answer: 'ssh' },
+      { text: 'Sends a token in a header', answer: 'https' },
+      { text: 'Can scope permissions per repo', answer: 'https' },
+      { text: 'Secret never leaves your machine', answer: 'ssh' },
+    ],
+  },
+
+  // 6 — Terminal challenge (randomized at render time)
+  {
+    type: 'dynamic-spot',
+    badge: 'both',
+    title: 'Spot the Protocol',
+    visual: 'terminal-urls',
+  },
+
+  // 7 — When to use what
+  {
+    type: 'quiz',
+    badge: 'both',
+    title: 'Real World Decision',
+    narrative: `You're setting up a CI/CD pipeline that runs on a shared cloud server. The pipeline needs to pull code from GitHub. It runs behind a corporate firewall that blocks most ports. Which protocol should you choose?`,
+    choices: [
+      'SSH — it\'s more secure so always better for automation',
+      'HTTPS with a scoped token — it works on port 443 (always open), and the token can be limited to just what the pipeline needs',
+      'Neither — just download ZIP files',
+      'SSH — you never need to rotate credentials',
+    ],
+    correct: 1,
+    explanations: {
+      correct: 'Smart thinking! HTTPS is the standard for CI/CD because port 443 passes through virtually all firewalls, and scoped tokens let you give the pipeline <strong>only the permissions it needs</strong> (least privilege). You can also revoke/rotate the token easily.',
+      wrong: 'For CI/CD behind firewalls, HTTPS is usually the right call. Port 443 is almost never blocked, and scoped tokens let you limit permissions to exactly what the pipeline needs — a security best practice.',
+    }
+  },
+
+  // 8 — gh CLI intro
+  {
+    type: 'visual-story',
+    badge: 'gh',
+    title: 'Bonus: The GitHub CLI (gh)',
+    narrative: `There's a <strong>third way</strong> to talk to GitHub: the <strong style="color:#a3e635">gh</strong> command-line tool. It's not a new protocol — it rides on top of HTTPS under the hood — but it changes <em>how you authenticate</em>.<br><br>
+    Instead of manually creating tokens, <code>gh auth login</code> opens your browser, you log in to GitHub, and the tool stores a secure token for you automatically. From then on, commands like <code>gh repo clone</code>, <code>gh pr create</code>, and <code>gh issue list</code> just work.<br><br>
+    Think of <strong style="color:#a3e635">gh</strong> as a <strong>smart wrapper</strong>: it handles the HTTPS authentication plumbing so you can focus on GitHub workflows (pull requests, issues, releases) without thinking about tokens or URLs.`,
+    visual: 'gh-flow',
+  },
+
+  // 9 — gh quiz
+  {
+    type: 'quiz',
+    badge: 'gh',
+    title: 'Pop Quiz: GitHub CLI',
+    narrative: `You run <code>gh auth login</code> and authenticate in your browser. What happens under the hood?`,
+    choices: [
+      'gh generates an SSH key pair and uploads it to GitHub',
+      'gh stores your GitHub password in a file',
+      'gh receives an OAuth token via HTTPS and stores it securely for future API calls',
+      'gh connects directly to GitHub\'s servers via a special protocol on port 9418',
+    ],
+    correct: 2,
+    explanations: {
+      correct: 'Exactly! The <code>gh</code> CLI uses <strong>OAuth</strong> — a standard web login flow. Your browser authenticates you, GitHub issues a scoped token, and <code>gh</code> stores it in your system\'s credential store. All subsequent commands use this token over HTTPS. No SSH keys, no manual token management.',
+      wrong: 'The <code>gh</code> CLI uses <strong>OAuth over HTTPS</strong>. When you run <code>gh auth login</code>, it opens your browser for a GitHub login, receives a scoped token, and stores it securely. Everything rides on HTTPS — it\'s just automated token management.',
+    }
+  },
+
+  // 10 — Final comparison quiz
+  {
+    type: 'quiz',
+    badge: 'both',
+    title: 'Final Challenge: Pick the Right Tool',
+    narrative: `Match the scenario: You want to quickly create a pull request from the command line, add reviewers, and link it to an issue — all without opening a browser. Which tool is best?`,
+    choices: [
+      'git push over SSH, then open GitHub in a browser to create the PR',
+      'git push over HTTPS, then use curl to call the GitHub API with a PAT',
+      'gh pr create — it handles auth, push, and the GitHub API in one command',
+      'Email a patch file to your teammates',
+    ],
+    correct: 2,
+    explanations: {
+      correct: 'That\'s the sweet spot of <code>gh</code>! It combines git operations with GitHub API calls in a single tool. <code>gh pr create --fill --reviewer teammate</code> pushes your branch and creates the PR in one shot. SSH and HTTPS handle the <em>transport</em> — <code>gh</code> handles the <em>workflow</em>.',
+      wrong: 'The GitHub CLI (<code>gh</code>) is purpose-built for this. It wraps git + GitHub API into one tool, so <code>gh pr create</code> handles pushing, PR creation, reviewers, and issue linking in a single command. SSH/HTTPS are transport layers — <code>gh</code> is the workflow layer on top.',
+    }
+  },
+];
+
+// ── Render Stars ──
+function renderStars() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 1;
+    s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;animation-delay:${Math.random()*3}s;animation-duration:${2+Math.random()*3}s;`;
+    c.appendChild(s);
+  }
+}
+
+// ── Progress Bar ──
+function renderProgress() {
+  const bar = document.getElementById('progressBar');
+  bar.innerHTML = '';
+  for (let i = 0; i < levels.length; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot' + (i < state.level ? ' done' : '') + (i === state.level ? ' active' : '');
+    bar.appendChild(dot);
+  }
+}
+
+// ── Update Score Display ──
+function updateScore() {
+  document.getElementById('scoreDisplay').textContent = state.score;
+  document.getElementById('levelDisplay').textContent = Math.min(state.level + 1, levels.length);
+  document.getElementById('totalLevels').textContent = levels.length;
+}
+
+// ── Render Level ──
+function renderLevel() {
+  state.answered = false;
+  state.sortPlacements = {};
+  state.sortChecked = false;
+  renderProgress();
+  updateScore();
+
+  if (state.level >= levels.length) {
+    renderFinal();
+    return;
+  }
+
+  const level = levels[state.level];
+  const scene = document.getElementById('scene');
+  scene.style.animation = 'none';
+  requestAnimationFrame(() => { scene.style.animation = 'fadeIn 0.4s ease'; });
+
+  switch(level.type) {
+    case 'intro': renderIntro(level); break;
+    case 'interactive-keygen': renderKeygen(level); break;
+    case 'quiz': renderQuiz(level); break;
+    case 'visual-story': renderVisualStory(level); break;
+    case 'sort': renderSort(level); break;
+    case 'dynamic-spot': renderSpotProtocol(level); break;
+  }
+}
+
+// ── Badge HTML ──
+function badgeHTML(type) {
+  const labels = { ssh: 'SSH Route', https: 'HTTPS Route', both: 'Both Routes', gh: 'GitHub CLI' };
+  return `<div class="scene-badge badge-${type}">${labels[type]}</div>`;
+}
+
+// ── Network Visual ──
+function networkVisualHTML(type) {
+  const configs = {
+    ssh: { port: '22', color: 'ssh', label: 'SSH Tunnel', sub1: '~/.ssh/id_ed25519', sub2: 'authorized_keys' },
+    https: { port: '443', color: 'https', label: 'TLS Tunnel', sub1: 'PAT / Token', sub2: 'Token DB' },
+  };
+  const c = configs[type];
+  return `
+    <div class="network-visual" id="nv-${type}">
+      <div class="nv-node"><div class="nv-node-icon">💻</div><div class="nv-node-label">Your Machine</div><div class="nv-node-sub">${c.sub1}</div></div>
+      <div class="nv-pipe"><div class="nv-pipe-bg"></div><div class="nv-pipe-fill ${c.color}" id="pipe-${type}"></div></div>
+      <div class="nv-node"><div class="nv-node-icon">🖥️</div><div class="nv-node-label">Git Server</div><div class="nv-node-sub">${c.sub2}</div></div>
+    </div>
+    <div class="packet-anim"><span class="packet ${c.color}">📦 ${c.label} — Port ${c.port}</span></div>`;
+}
+
+// ── Intro ──
+function renderIntro(level) {
+  document.getElementById('scene').innerHTML = `
+    ${badgeHTML(level.badge)}
+    <div class="scene-title">${level.title}</div>
+    <div class="scene-narrative">${level.narrative}</div>
+    <div class="visual-box">
+      ${networkVisualHTML('ssh')}
+      <div style="height:20px"></div>
+      ${networkVisualHTML('https')}
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="nextLevel()">Let's Go →</button></div>
+  `;
+  setTimeout(() => {
+    const p1 = document.getElementById('pipe-ssh');
+    const p2 = document.getElementById('pipe-https');
+    if (p1) p1.style.width = '100%';
+    if (p2) p2.style.width = '100%';
+  }, 300);
+}
+
+// ── Keygen ──
+function renderKeygen(level) {
+  document.getElementById('scene').innerHTML = `
+    ${badgeHTML(level.badge)}
+    <div class="scene-title">${level.title}</div>
+    <div class="scene-narrative">${level.narrative}</div>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+        <span class="terminal-title">Terminal</span>
+      </div>
+      <div class="terminal-body">
+        <span class="prompt">$</span> <span class="cmd">ssh-keygen -t ed25519 -C "you@email.com"</span><br>
+        <span class="output">Generating public/private ed25519 key pair...</span><br>
+        <span class="output">Your identification has been saved in <span class="highlight-ssh">~/.ssh/id_ed25519</span></span><br>
+        <span class="output">Your public key has been saved in <span class="highlight-https">~/.ssh/id_ed25519.pub</span></span>
+      </div>
+    </div>
+    <div class="visual-box">
+      <div class="key-gen-visual">
+        <div class="key-card private" id="keyPrivate" style="opacity:0;transform:translateY(20px);transition:all 0.5s 0.3s">
+          <div class="key-icon">🔐</div>
+          <div class="key-label private">Private Key</div>
+          <div class="key-sub">Stays on YOUR machine<br>Never share this!</div>
+        </div>
+        <div style="display:flex;align-items:center;font-size:28px;color:var(--dim);opacity:0;transition:opacity 0.5s 0.6s" id="keyArrow">⟷</div>
+        <div class="key-card public" id="keyPublic" style="opacity:0;transform:translateY(20px);transition:all 0.5s 0.9s">
+          <div class="key-icon">🔓</div>
+          <div class="key-label public">Public Key</div>
+          <div class="key-sub">Upload to GitHub<br>Safe to share with anyone</div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="nextLevel()">Got It →</button></div>
+  `;
+  setTimeout(() => {
+    document.getElementById('keyPrivate').style.opacity = '1';
+    document.getElementById('keyPrivate').style.transform = 'translateY(0)';
+    document.getElementById('keyArrow').style.opacity = '1';
+    document.getElementById('keyPublic').style.opacity = '1';
+    document.getElementById('keyPublic').style.transform = 'translateY(0)';
+  }, 100);
+}
+
+// ── Visual Story ──
+function renderVisualStory(level) {
+  let visualHTML = '';
+  if (level.visual === 'https-flow') {
+    visualHTML = `
+      <div class="visual-box">
+        ${networkVisualHTML('https')}
+        <div style="margin-top:16px;font-size:13px;color:var(--dim);">
+          <strong style="color:var(--https)">Step 1:</strong> TLS handshake (encrypted tunnel) →
+          <strong style="color:var(--https)">Step 2:</strong> Token sent inside tunnel →
+          <strong style="color:var(--https)">Step 3:</strong> Server verifies token
+        </div>
+      </div>`;
+  } else if (level.visual === 'gh-flow') {
+    visualHTML = `
+      <div class="terminal" style="margin-bottom:20px">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <span class="terminal-title">Terminal</span>
+        </div>
+        <div class="terminal-body">
+          <span class="prompt">$</span> <span class="cmd">gh auth login</span><br>
+          <span class="output">? What account do you want to log into? <span style="color:#a3e635">GitHub.com</span></span><br>
+          <span class="output">? What is your preferred protocol? <span style="color:#a3e635">HTTPS</span></span><br>
+          <span class="output">? Authenticate with browser? <span style="color:#a3e635">Yes</span></span><br>
+          <span class="output">✓ <span style="color:var(--success)">Authentication complete.</span></span><br><br>
+          <span class="prompt">$</span> <span class="cmd">gh repo clone user/repo</span> <span class="comment"># just works!</span><br>
+          <span class="prompt">$</span> <span class="cmd">gh pr create --fill</span> <span class="comment"># push + PR in one shot</span><br>
+          <span class="prompt">$</span> <span class="cmd">gh issue list</span> <span class="comment"># browse issues from terminal</span>
+        </div>
+      </div>
+      <div class="visual-box">
+        <div class="network-visual">
+          <div class="nv-node"><div class="nv-node-icon">💻</div><div class="nv-node-label">You + gh CLI</div><div class="nv-node-sub">OAuth token (auto)</div></div>
+          <div class="nv-pipe"><div class="nv-pipe-bg"></div><div class="nv-pipe-fill https" id="pipe-gh" style="width:0%"></div></div>
+          <div class="nv-node"><div class="nv-node-icon">🐙</div><div class="nv-node-label">GitHub API</div><div class="nv-node-sub">HTTPS under the hood</div></div>
+        </div>
+        <div class="packet-anim"><span class="packet https">🔧 gh wraps HTTPS + GitHub API</span></div>
+      </div>`;
+  }
+  document.getElementById('scene').innerHTML = `
+    ${badgeHTML(level.badge)}
+    <div class="scene-title">${level.title}</div>
+    <div class="scene-narrative">${level.narrative}</div>
+    ${visualHTML}
+    <div class="btn-row"><button class="btn btn-primary" onclick="nextLevel()">Continue →</button></div>
+  `;
+  setTimeout(() => {
+    const p = document.getElementById('pipe-https');
+    if (p) p.style.width = '100%';
+    const pg = document.getElementById('pipe-gh');
+    if (pg) pg.style.width = '100%';
+  }, 300);
+}
+
+// ── Quiz ──
+function renderQuiz(level) {
+  let visualHTML = '';
+  if (level.visual === 'terminal-urls') {
+    visualHTML = `
+      <div class="terminal" style="margin-bottom:20px">
+        <div class="terminal-bar">
+          <div class="terminal-dot r"></div><div class="terminal-dot y"></div><div class="terminal-dot g"></div>
+          <span class="terminal-title">Terminal</span>
+        </div>
+        <div class="terminal-body">
+          <span class="comment"># URL A:</span><br>
+          <span class="cmd"><span class="highlight-https">https://github.com/user/repo.git</span></span><br><br>
+          <span class="comment"># URL B:</span><br>
+          <span class="cmd"><span class="highlight-ssh">git@github.com:user/repo.git</span></span>
+        </div>
+      </div>`;
+  }
+
+  const keys = ['A', 'B', 'C', 'D'];
+  const choicesHTML = level.choices.map((c, i) => `
+    <button class="choice-btn" id="choice-${i}" onclick="handleQuizChoice(${i})">
+      <span class="choice-key">${keys[i]}</span>
+      <span>${c}</span>
+    </button>
+  `).join('');
+
+  document.getElementById('scene').innerHTML = `
+    ${badgeHTML(level.badge)}
+    <div class="scene-title">${level.title}</div>
+    <div class="scene-narrative">${level.narrative}</div>
+    ${visualHTML}
+    <div class="choices" id="choicesContainer">${choicesHTML}</div>
+    <div id="explainArea"></div>
+    <div class="btn-row" id="quizBtnRow" style="display:none">
+      <button class="btn btn-primary" onclick="nextLevel()">Next →</button>
+    </div>
+  `;
+}
+
+function handleQuizChoice(idx) {
+  if (state.answered) return;
+  state.answered = true;
+
+  const level = levels[state.level];
+  const isCorrect = idx === level.correct;
+
+  // Style buttons
+  document.querySelectorAll('.choice-btn').forEach((btn, i) => {
+    if (i === level.correct) btn.classList.add('correct');
+    else if (i === idx && !isCorrect) btn.classList.add('wrong');
+    btn.classList.add('disabled');
+  });
+
+  // Score
+  if (isCorrect) state.score += 10;
+  updateScore();
+
+  // Explanation
+  const explain = document.getElementById('explainArea');
+  explain.innerHTML = `
+    <div class="explain-box ${isCorrect ? '' : 'error-explain'}">
+      <strong>${isCorrect ? '✅ Correct!' : '❌ Not quite!'}</strong><br>
+      ${isCorrect ? level.explanations.correct : level.explanations.wrong}
+    </div>`;
+
+  document.getElementById('quizBtnRow').style.display = 'flex';
+}
+
+// ── Spot the Protocol (randomized) ──
+function renderSpotProtocol(level) {
+  const askSSH = Math.random() < 0.5;
+  const question = askSSH
+    ? 'Look at these two git clone URLs. Which one uses <strong style="color:var(--ssh)">SSH</strong>?'
+    : 'Look at these two git clone URLs. Which one uses <strong style="color:var(--https)">HTTPS</strong>?';
+  const correctIdx = askSSH ? 1 : 0;
+  const explanation = askSSH
+    ? { correct: 'You got it! The <code>git@github.com:</code> pattern is the SSH format. Notice the <strong>colon (:)</strong> instead of a slash — that\'s the giveaway. The <code>https://</code> one is, well, HTTPS!',
+        wrong: 'The SSH URL format is <code>git@github.com:user/repo.git</code> — notice the <strong>colon</strong> after the hostname. The <code>https://</code> prefix is the HTTPS format.' }
+    : { correct: 'Right! The <code>https://</code> prefix is the HTTPS format — same URL structure you\'d see in a browser. The other one (<code>git@github.com:</code> with a <strong>colon</strong>) is the SSH format.',
+        wrong: 'The HTTPS URL starts with <code>https://</code> — just like a regular web address. The <code>git@github.com:</code> format (with the <strong>colon</strong>) is SSH.' };
+
+  // Build a fake quiz level object and delegate to renderQuiz
+  const quizLevel = {
+    type: 'quiz',
+    badge: level.badge,
+    title: level.title,
+    narrative: question,
+    visual: 'terminal-urls',
+    choices: [
+      'https://github.com/user/repo.git',
+      'git@github.com:user/repo.git',
+      'Both are HTTPS',
+      'Both are SSH',
+    ],
+    correct: correctIdx,
+    explanations: { correct: explanation.correct, wrong: explanation.wrong },
+  };
+
+  // Temporarily swap into levels array so handleQuizChoice reads the right data
+  levels[state.level] = quizLevel;
+  renderQuiz(quizLevel);
+}
+
+// ── Sort Game ──
+function renderSort(level) {
+  state.sortPlacements = {};
+  state.sortChecked = false;
+
+  // Shuffle display order while keeping original indices for answer checking
+  const indices = level.items.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const itemsHTML = indices.map(i => `
+    <div class="drag-item"
+         draggable="true" id="sortItem-${i}"
+         ondragstart="handleDragStart(event, ${i})"
+         onclick="handleItemClick(${i})">${level.items[i].text}</div>
+  `).join('');
+
+  document.getElementById('scene').innerHTML = `
+    ${badgeHTML(level.badge)}
+    <div class="scene-title">${level.title}</div>
+    <div class="scene-narrative">${level.narrative}</div>
+    <div class="drag-items" id="dragItems">${itemsHTML}</div>
+    <div class="sort-container">
+      <div class="sort-bucket ssh-bucket" id="sshBucket"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'ssh')" ondragleave="handleDragLeave(event)">
+        <h4>🔐 SSH</h4>
+        <div class="placed-items" id="sshPlaced"></div>
+      </div>
+      <div class="sort-bucket https-bucket" id="httpsBucket"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'https')" ondragleave="handleDragLeave(event)">
+        <h4>🔒 HTTPS</h4>
+        <div class="placed-items" id="httpsPlaced"></div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--dim);text-align:center;margin-bottom:12px;">Drag items to a bucket, or tap an item then tap a bucket.</p>
+    <div id="sortExplain"></div>
+    <div class="btn-row">
+      <button class="btn btn-check" id="sortCheckBtn" onclick="checkSort()" disabled>Check Answers</button>
+      <button class="btn btn-primary" id="sortNextBtn" onclick="nextLevel()" style="display:none">Next →</button>
+    </div>
+  `;
+}
+
+let dragIdx = null;
+let selectedItem = null;
+
+function handleDragStart(e, idx) {
+  dragIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function handleDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('over');
+}
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('over');
+}
+function handleDrop(e, bucket) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('over');
+  if (dragIdx !== null) {
+    placeItem(dragIdx, bucket);
+    dragIdx = null;
+  }
+}
+
+function handleItemClick(idx) {
+  if (state.sortChecked) return;
+  const el = document.getElementById(`sortItem-${idx}`);
+  if (el.classList.contains('placed')) return;
+
+  if (selectedItem === idx) {
+    el.style.outline = 'none';
+    selectedItem = null;
+    return;
+  }
+  // Deselect previous
+  if (selectedItem !== null) {
+    const prev = document.getElementById(`sortItem-${selectedItem}`);
+    if (prev) prev.style.outline = 'none';
+  }
+  selectedItem = idx;
+  el.style.outline = '2px solid #a78bfa';
+  el.style.outlineOffset = '2px';
+
+  // Make buckets clickable
+  document.getElementById('sshBucket').onclick = () => { placeItem(idx, 'ssh'); clearBucketListeners(); };
+  document.getElementById('httpsBucket').onclick = () => { placeItem(idx, 'https'); clearBucketListeners(); };
+}
+
+function clearBucketListeners() {
+  document.getElementById('sshBucket').onclick = null;
+  document.getElementById('httpsBucket').onclick = null;
+  selectedItem = null;
+}
+
+function placeItem(idx, bucket) {
+  if (state.sortChecked) return;
+  const level = levels[state.level];
+  const item = level.items[idx];
+
+  state.sortPlacements[idx] = bucket;
+  const el = document.getElementById(`sortItem-${idx}`);
+  el.classList.add('placed');
+  el.style.outline = 'none';
+
+  const target = document.getElementById(bucket === 'ssh' ? 'sshPlaced' : 'httpsPlaced');
+  const tag = document.createElement('div');
+  tag.className = 'placed-tag';
+  tag.textContent = item.text;
+  tag.dataset.idx = idx;
+  target.appendChild(tag);
+
+  // Enable check button when all placed
+  if (Object.keys(state.sortPlacements).length === level.items.length) {
+    document.getElementById('sortCheckBtn').disabled = false;
+  }
+}
+
+function checkSort() {
+  state.sortChecked = true;
+  const level = levels[state.level];
+  let correct = 0;
+
+  level.items.forEach((item, i) => {
+    const placed = state.sortPlacements[i];
+    const isCorrect = placed === item.answer;
+    if (isCorrect) correct++;
+    document.querySelectorAll('.placed-tag').forEach(tag => {
+      if (parseInt(tag.dataset.idx) === i) {
+        tag.classList.add(isCorrect ? 'reveal-correct' : 'reveal-wrong');
+      }
+    });
+  });
+
+  const points = correct * 2;
+  state.score += points;
+  updateScore();
+
+  const explain = document.getElementById('sortExplain');
+  explain.innerHTML = `
+    <div class="explain-box ${correct === level.items.length ? '' : 'error-explain'}">
+      <strong>${correct === level.items.length ? '🎉 Perfect!' : `${correct}/${level.items.length} correct`}</strong> — You earned <strong>${points} points</strong>!
+      ${correct < level.items.length ? '<br>Items with a strikethrough were in the wrong bucket.' : ''}
+    </div>`;
+
+  document.getElementById('sortCheckBtn').style.display = 'none';
+  document.getElementById('sortNextBtn').style.display = 'inline-flex';
+}
+
+// ── Final Screen ──
+function renderFinal() {
+  const maxScore = 60 + 16; // 6 quizzes × 10 + 8 sort items × 2
+  const pct = Math.round((state.score / maxScore) * 100);
+  let grade, emoji;
+  if (pct >= 90) { grade = 'Network Ninja'; emoji = '🥷'; }
+  else if (pct >= 70) { grade = 'Protocol Pro'; emoji = '⭐'; }
+  else if (pct >= 50) { grade = 'Courier in Training'; emoji = '📦'; }
+  else { grade = 'Keep Exploring!'; emoji = '🌱'; }
+
+  document.getElementById('scene').innerHTML = `
+    <div class="final-score">
+      <div class="trophy">${emoji}</div>
+      <div class="big-score">${state.score} / ${maxScore}</div>
+      <div class="score-label">points earned</div>
+      <div class="grade">${grade}</div>
+    </div>
+    <div class="final-recap" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="recap-card">
+        <h4 class="ssh-label">🔐 SSH</h4>
+        <p>
+          <strong>Asymmetric key pair</strong> — private key never leaves your machine.<br>
+          Runs on <strong>port 22</strong>.<br>
+          <strong>Passwordless</strong> after setup.<br>
+          Best for: <strong>daily dev on your machine</strong>.
+        </p>
+      </div>
+      <div class="recap-card">
+        <h4 class="https-label">🔒 HTTPS</h4>
+        <p>
+          <strong>Token inside a TLS tunnel</strong>.<br>
+          Runs on <strong>port 443</strong> (firewall-friendly).<br>
+          Supports <strong>scoped per-repo tokens</strong>.<br>
+          Best for: <strong>CI/CD &amp; shared environments</strong>.
+        </p>
+      </div>
+      <div class="recap-card">
+        <h4 style="color:#a3e635">🔧 gh CLI</h4>
+        <p>
+          <strong>Wraps HTTPS + GitHub API</strong>.<br>
+          OAuth login via browser — <strong>no manual tokens</strong>.<br>
+          One tool for clone, PR, issues, releases.<br>
+          Best for: <strong>GitHub-heavy workflows</strong>.
+        </p>
+      </div>
+    </div>
+    <div class="btn-row" style="justify-content:center;margin-top:24px">
+      <button class="btn btn-ghost" onclick="restartGame()">Play Again</button>
+    </div>
+  `;
+  renderProgress();
+  updateScore();
+}
+
+function restartGame() {
+  state.level = 0;
+  state.score = 0;
+  renderLevel();
+}
+
+function nextLevel() {
+  state.level++;
+  renderLevel();
+}
+
+// ── Init ──
+renderStars();
+renderLevel();
+</script>
+</body>
+</html>
