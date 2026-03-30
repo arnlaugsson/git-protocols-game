@@ -6,6 +6,7 @@ An interactive browser-based game that teaches you how Git protocols actually wo
 
 ## What you'll learn
 
+- Why Git needs protocols at all — local repos, remotes, and what `origin` means
 - How SSH key authentication works (and why your private key never leaves your machine)
 - Why HTTPS with a token is safe despite "sending credentials over the wire"
 - When to use SSH vs HTTPS (spoiler: CI/CD has a clear winner)
@@ -16,14 +17,15 @@ An interactive browser-based game that teaches you how Git protocols actually wo
 
 | Round | Type | Subject |
 |-------|------|---------|
-| 1 | Concept | SSH key pairs & challenge-response auth |
-| 2 | Quiz | SSH basics |
-| 3 | Concept | HTTPS & TLS handshake |
-| 4 | Quiz | HTTPS & token security |
-| 5 | Sort game | SSH vs HTTPS properties |
-| 6–7 | Concept + Quiz | CI/CD & firewall considerations |
-| 8–9 | Concept + Quiz | How `gh` CLI uses OAuth |
-| 10 | Quiz | Putting it all together |
+| 1 | Concept | Local repos, remotes, and `origin` |
+| 2 | Concept | SSH key pairs & challenge-response auth |
+| 3 | Quiz | SSH basics |
+| 4 | Concept | HTTPS & TLS handshake |
+| 5 | Quiz | HTTPS & token security |
+| 6 | Sort game | SSH vs HTTPS properties |
+| 7–8 | Concept + Quiz | CI/CD & firewall considerations |
+| 9–10 | Concept + Quiz | How `gh` CLI uses OAuth |
+| 11 | Quiz | Putting it all together |
 
 ## Running locally
 
