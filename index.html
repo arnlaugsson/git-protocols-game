@@ -509,13 +509,18 @@
 
 <script>
 // ── Game State ──
+const _saved = JSON.parse(localStorage.getItem('gitcourier') || 'null');
 const state = {
-  level: 0,
-  score: 0,
+  level: _saved?.level ?? 0,
+  score: _saved?.score ?? 0,
   answered: false,
   sortPlacements: {},
   sortChecked: false,
 };
+
+function saveState() {
+  localStorage.setItem('gitcourier', JSON.stringify({ level: state.level, score: state.score }));
+}
 
 // ── Level Data ──
 const levels = [
@@ -1247,11 +1252,13 @@ function renderFinal() {
 function restartGame() {
   state.level = 0;
   state.score = 0;
+  localStorage.removeItem('gitcourier');
   renderLevel();
 }
 
 function nextLevel() {
   state.level++;
+  saveState();
   renderLevel();
 }
 
